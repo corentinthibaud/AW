@@ -1,0 +1,107 @@
+package net.shadowmage.ancientwarfare.core.input;
+
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.settings.KeyBinding;
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraftforge.client.event.MouseEvent;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.fml.client.registry.ClientRegistry;
+import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import net.minecraftforge.fml.common.gameevent.InputEvent.KeyInputEvent;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
+import net.shadowmage.ancientwarfare.core.config.AWCoreStatics;
+import net.shadowmage.ancientwarfare.core.input.IItemKeyInterface.ItemAltFunction;
+import net.shadowmage.ancientwarfare.core.network.NetworkHandler;
+import net.shadowmage.ancientwarfare.core.network.PacketItemMouseScroll;
+import org.lwjgl.input.Keyboard;
+
+import java.util.HashSet;
+import java.util.Set;
+import java.util.function.Predicate;
+
+@SideOnly(Side.CLIENT)
+public class InputHandler {
+
+	private static final String CATEGORY = "keybind.category.awCore";
+	public static final KeyBinding ALT_ITEM_USE_1 = new KeyBinding(AWCoreStatics.KEY_ALT_ITEM_USE_1, ItemKeyConflictContext.INSTANCE, Keyboard.KEY_Z, CATEGORY);
+	public static final KeyBinding ALT_ITEM_USE_2 = new KeyBinding(AWCoreStatics.KEY_ALT_ITEM_USE_2, ItemKeyConflictContext.INSTANCE, Keyboard.KEY_X, CATEGORY);
+	public static final KeyBinding ALT_ITEM_USE_3 = new KeyBinding(AWCoreStatics.KEY_ALT_ITEM_USE_3, ItemKeyConflictContext.INSTANCE, Keyboard.KEY_C, CATEGORY);
+	public static final KeyBinding ALT_ITEM_USE_4 = new KeyBinding(AWCoreStatics.KEY_ALT_ITEM_USE_4, ItemKeyConflictContext.INSTANCE, Keyboard.KEY_V, CATEGORY);
+	public static final KeyBinding ALT_ITEM_USE_5 = new KeyBinding(AWCoreStatics.KEY_ALT_ITEM_USE_5, ItemKeyConflictContext.INSTANCE, Keyboard.KEY_B, CATEGORY);
+
+	private static final Set<InputCallbackDispatcher> keybindingCallbacks = new HashSet<>();
+
+	static {
+		MinecraftForge.EVENT_BUS.register(new InputHandler());
+	}
+
+	private InputHandler() {
+	}
+
+	public static void initKeyBindings() {
+		ClientRegistry.registerKeyBinding(ALT_ITEM_USE_1);
+		ClientRegistry.registerKeyBinding(ALT_ITEM_USE_2);
+		ClientRegistry.registerKeyBinding(ALT_ITEM_USE_3);
+		ClientRegistry.registerKeyBinding(ALT_ITEM_USE_4);
+		ClientRegistry.registerKeyBinding(ALT_ITEM_USE_5);
+
+		initCallbacks();
+	}
+
+	private static void initCallbacks() {
+		registerCallBack(ALT_ITEM_USE_1, new ItemInputCallback(ItemAltFunction.ALT_FUNCTION_1));
+		registerCallBack(ALT_ITEM_USE_2, new ItemInputCallback(ItemAltFunction.ALT_FUNCTION_2));
+		registerCallBack(ALT_ITEM_USE_3, new ItemInputCallback(ItemAltFunction.ALT_FUNCTION_3));
+		registerCallBack(ALT_ITEM_USE_4, new ItemInputCallback(ItemAltFunction.ALT_FUNCTION_4));
+		registerCallBack(ALT_ITEM_USE_5, new ItemInputCallback(ItemAltFunction.ALT_FUNCTION_5));
+	}
+
+	public static void registerCallBack(KeyBinding keyBinding, IInputCallback callback) {
+		Predicate<InputCallbackDispatcher> matchingKeyBinding = d -> d.getKeyBinding().equals(keyBinding);
+		if (keybindingCallbacks.stream().anyMatch(matchingKeyBinding)) {
+			keybindingCallbacks.stream().filter(matchingKeyBinding).findFirst().ifPresent(d -> d.addInputCallback(callback));
+		} else {
+			keybindingCallbacks.add(new InputCallbackDispatcher(keyBinding, callback));
+		}
+	}
+
+	@SubscribeEvent
+	public void onKeyInput(KeyInputEvent evt) {
+		Minecraft minecraft = Minecraft.getMinecraft();
+		EntityPlayer player = minecraft.player;
+		if (player == null) {
+			return;
+		}
+
+		boolean state = Keyboard.getEventKeyState();
+
+		if (state) {
+			keybindingCallbacks.stream().filter(k -> k.getKeyBinding().isKeyDown()).forEach(InputCallbackDispatcher::onKeyPressed);
+		}
+	}
+
+	@SubscribeEvent
+	public void onMouseEvent(MouseEvent event){
+		EntityPlayer player = Minecraft.getMinecraft().player;
+		if (player.isSneaking() && event.getDwheel() != 0){
+			ItemStack stack = player.getHeldItemMainhand();
+			Item item = stack.getItem();
+			if (item instanceof IScrollableItem){
+				if (event.getDwheel() > 0) {
+					if (((IScrollableItem) item).onScrollUp(player.world, player, stack)) {
+						NetworkHandler.sendToServer(new PacketItemMouseScroll(true));
+					}
+
+				} else {
+					if (((IScrollableItem) item).onScrollDown(player.world, player, stack)) {
+						NetworkHandler.sendToServer(new PacketItemMouseScroll(false));
+					}
+				}
+				event.setCanceled(true);
+			}
+		}
+	}
+}

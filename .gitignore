@@ -1,0 +1,25 @@
+# ignore everything that's not specifically excluded below
+/*
+
+!gradle
+!project_resources
+!releases
+!src
+!code_format
+!libs
+!/buildSrc
+/buildSrc/*
+!/buildSrc/build.gradle
+!/buildSrc/src/
+
+!.gitignore
+!.gitattributes
+!./build.gradle
+!./gradle.properties
+!./gradlew
+!./gradlew.bat
+!./LICENSE.txt
+!./README.md
+!./.travis.yml
+
+./.idea/
